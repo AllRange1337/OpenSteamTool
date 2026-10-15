@@ -19,6 +19,15 @@ namespace {
     constexpr const char* kJsdelivrTemplate =
         "https://cdn.jsdelivr.net/gh/OpenSteam001/steam-monitor@"
         "{channel}/{component}/{sha256}.toml";
+    constexpr const char* kCommunityGithubTemplate =
+        "https://raw.githubusercontent.com/madoiscool/steam-monitor/"
+        "{channel}/{component}/{sha256}.toml";
+    constexpr const char* kCommunityJsdelivrTemplate =
+        "https://cdn.jsdelivr.net/gh/madoiscool/steam-monitor@"
+        "{channel}/{component}/{sha256}.toml";
+    constexpr const char* kLuaToolsTemplate =
+        "https://git.lua.tools/luatools/steam-monitor/raw/branch/"
+        "{channel}/{component}/{sha256}.toml";
 
     static bool HasPlaceholder(std::string_view text, std::string_view placeholder)
     {
@@ -56,16 +65,24 @@ namespace {
     static std::vector<std::string> BuildUrlTemplates()
     {
         const std::string remoteUrlTemplate = Config::GetRemoteUrlTemplate();
-        if (remoteUrlTemplate.empty())
-            return { kGithubTemplate, kJsdelivrTemplate };
+        std::vector<std::string> templates;
 
-        if (!IsValidTemplate(remoteUrlTemplate)) {
-            LOG_WARN("RemoteToml: remote.url_template must contain "
-                     "{channel}, {component}, and {sha256}; remote fetch disabled");
-            return {};
+        if (!remoteUrlTemplate.empty()) {
+            if (IsValidTemplate(remoteUrlTemplate)) {
+                templates.push_back(remoteUrlTemplate);
+            } else {
+                LOG_WARN("RemoteToml: remote.url_template must contain "
+                         "{channel}, {component}, and {sha256}; ignoring custom mirror");
+            }
         }
 
-        return { remoteUrlTemplate };
+        templates.push_back(kGithubTemplate);
+        templates.push_back(kJsdelivrTemplate);
+        templates.push_back(kCommunityGithubTemplate);
+        templates.push_back(kCommunityJsdelivrTemplate);
+        templates.push_back(kLuaToolsTemplate);
+
+        return templates;
     }
 } // namespace
 
@@ -119,7 +136,7 @@ Result Fetch(const Request& request)
         if (http.ok && http.status == 404) {
             LOG_WARN("RemoteToml({}/{}): mirror has no such file (HTTP 404): {}",
                      request.channel, request.component, lastUrl);
-            break;   // all mirrors serve same data
+            continue;
         }
 
         if (i + 1 < urlTemplates.size()) {

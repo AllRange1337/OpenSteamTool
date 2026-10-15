@@ -59,7 +59,9 @@ namespace {
                           EMsg& eMsg, const uint8*& pHdr, uint32& cbHdr,
                           const uint8*& pBody, uint32& cbBody)
     {
-        if (!data || size < sizeof(MsgHdr)) {
+        if (!data || reinterpret_cast<uintptr_t>(data) < 0x10000 ||
+            reinterpret_cast<uintptr_t>(data) == static_cast<uintptr_t>(~0ULL) ||
+            size < sizeof(MsgHdr)) {
         fail:
             eMsg = static_cast<EMsg>(0);
             cbHdr = 0;
@@ -1318,6 +1320,13 @@ namespace {
 
     HOOK_FUNC(RecvPkt, void*, void* pThis, CNetPacket* pPacket)
     {
+        if (!pPacket || !pPacket->m_pubData ||
+            reinterpret_cast<uintptr_t>(pPacket->m_pubData) < 0x10000 ||
+            reinterpret_cast<uintptr_t>(pPacket->m_pubData) == static_cast<uintptr_t>(~0ULL) ||
+            pPacket->m_cubData < sizeof(MsgHdr)) {
+            return oRecvPkt(pThis, pPacket);
+        }
+
         Hooks_NetPacket_RichPresence::TryInject(
             pThis, pPacket,
             [](void* pT, CNetPacket* pP) -> bool { return oRecvPkt(pT, pP) != nullptr; });
